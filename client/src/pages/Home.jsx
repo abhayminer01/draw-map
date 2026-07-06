@@ -26,7 +26,8 @@ export default function Home() {
 
   const fetchMaps = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/maps')
+      const API_URL = import.meta.env.VITE_API_URL || '';
+      const res = await axios.get(`${API_URL}/api/maps`)
       setMaps(res.data)
     } catch (error) {
       console.error('Error fetching maps:', error)
@@ -41,7 +42,8 @@ export default function Home() {
 
     setCreating(true)
     try {
-      const res = await axios.post('http://localhost:5000/api/maps', {
+      const API_URL = import.meta.env.VITE_API_URL || '';
+      const res = await axios.post(`${API_URL}/api/maps`, {
         name: newMapName
       })
       navigate(`/map/${res.data.id}`)
@@ -56,7 +58,7 @@ export default function Home() {
       {/* Header */}
       <header className="h-16 border-b border-white/10 bg-surface/80 backdrop-blur-md flex items-center justify-between px-6 sticky top-0 z-20">
         <div className="flex items-center gap-2">
-          <MapIcon className="text-primary" size={24} />
+          <img src="/images/logo-without-bg.png" alt="Draw Map Logo" className="h-8 w-auto object-contain" />
           <span className="text-xl font-bold tracking-tight">Draw Map</span>
         </div>
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-gray-400">
@@ -105,7 +107,7 @@ export default function Home() {
       ) : (
         <div className="text-center py-20 glass-card rounded-3xl border-dashed border-2 border-white/10">
           <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
-            <MapIcon className="text-gray-500" size={32} />
+            <img src="/images/icon.png" alt="Draw Map" className="w-16 h-16 opacity-30 mx-auto" />
           </div>
           <h3 className="text-2xl font-semibold mb-2">No maps yet</h3>
           <p className="text-gray-400 max-w-md mx-auto mb-8">You haven't created any maps. Click the button below to start your first canvas.</p>
@@ -173,7 +175,7 @@ export default function Home() {
         <div className="container mx-auto px-6 max-w-6xl">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-2 text-gray-400">
-              <MapIcon size={20} />
+              <img src="/images/logo-without-bg.png" alt="Draw Map Logo" className="h-6 w-auto object-contain opacity-80" />
               <span className="font-medium">Draw Map &copy; 2026</span>
             </div>
             <nav className="flex flex-wrap justify-center items-center gap-x-6 gap-y-2 text-sm text-gray-500">

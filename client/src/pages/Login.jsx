@@ -8,6 +8,7 @@ export default function Login() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { login } = useAuth();
@@ -15,12 +16,27 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+    
+    if (!isLogin) {
+      if (password !== confirmPassword) {
+        return setError('Passwords do not match');
+      }
+      if (password.length < 8) {
+        return setError('Password must be at least 8 characters long');
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return setError('Invalid email format');
+      }
+    }
+
+    setLoading(true);
 
     try {
+      const API_URL = import.meta.env.VITE_API_URL || '';
       const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
-      const res = await axios.post(`http://localhost:5000${endpoint}`, { email, password });
+      const res = await axios.post(`${API_URL}${endpoint}`, { email, password });
       
       login(res.data.token);
       navigate('/dashboard');
@@ -39,9 +55,9 @@ export default function Login() {
 
       <div className="glass-card w-full max-w-md p-8 rounded-3xl relative z-10 animate-in fade-in slide-in-from-bottom-8 duration-700">
         <div className="flex justify-center mb-8">
-          <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10 shadow-lg">
-            <MapIcon className="text-primary" size={32} />
-          </div>
+          <div className="flex items-center justify-center">
+              <img src="/images/logo-without-bg.png" alt="Draw Map Logo" className="h-16 w-auto object-contain drop-shadow-[0_0_15px_rgba(59,130,246,0.3)]" />
+            </div>
         </div>
         
         <h2 className="text-3xl font-bold text-center mb-2">
@@ -81,6 +97,20 @@ export default function Login() {
               placeholder="••••••••"
             />
           </div>
+          
+          {!isLogin && (
+            <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+              <label className="block text-sm font-medium text-gray-300 mb-2">Confirm Password</label>
+              <input 
+                type="password" 
+                required={!isLogin}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                placeholder="••••••••"
+              />
+            </div>
+          )}
 
           <button 
             type="submit" 

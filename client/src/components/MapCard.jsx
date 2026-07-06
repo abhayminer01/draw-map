@@ -34,7 +34,7 @@ export default function MapCard({ map }) {
       
       <div className="flex items-start justify-between relative z-10">
         <div className="p-3 bg-white/10 backdrop-blur-md rounded-xl text-primary group-hover:text-white transition-colors duration-300 border border-white/10">
-          <MapIcon size={28} strokeWidth={1.5} />
+          <img src="/images/icon.png" alt="Map Icon" className="w-10 h-10 opacity-30 group-hover:opacity-50 transition-opacity duration-300" />
         </div>
       </div>
       

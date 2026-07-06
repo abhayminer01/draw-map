@@ -2,7 +2,9 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const knexConfig = require('./knexfile');
-const knex = require('knex')(knexConfig.development);
+const environment = process.env.NODE_ENV || 'development';
+const knex = require('knex')(knexConfig[environment]);
+const path = require('path');
 const auth = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
 
@@ -75,6 +77,15 @@ app.put('/api/maps/:id', auth, async (req, res) => {
     res.status(500).json({ error: 'Failed to update map' });
   }
 });
+
+// Serve frontend in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../client/dist')));
+  
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+  });
+}
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

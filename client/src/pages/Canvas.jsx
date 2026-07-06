@@ -256,7 +256,8 @@ export default function Canvas() {
   useEffect(() => {
     const fetchMap = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/maps/${id}`);
+        const API_URL = import.meta.env.VITE_API_URL || '';
+        const res = await axios.get(`${API_URL}/api/maps/${id}`);
         setMapData(res.data);
         if (res.data.canvas_data) {
           const parsed = JSON.parse(res.data.canvas_data);
@@ -335,7 +336,8 @@ export default function Canvas() {
         refImageStr,
         refConfig
       });
-      await axios.put(`http://localhost:5000/api/maps/${id}`, { canvas_data });
+      const API_URL = import.meta.env.VITE_API_URL || '';
+      await axios.put(`${API_URL}/api/maps/${id}`, { canvas_data });
     } catch (error) {
       console.error('Error saving map:', error);
     } finally {
