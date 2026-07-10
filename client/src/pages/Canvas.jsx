@@ -130,10 +130,15 @@ export default function Canvas() {
 
   useEffect(() => {
     // Center the canvas on initial load
-    const screenW = window.innerWidth - 64;
+    const isMobile = window.innerWidth < 768;
+    const screenW = isMobile ? window.innerWidth : window.innerWidth - 64;
     const screenH = window.innerHeight - 64;
-    setStageX((screenW - CANVAS_WIDTH * initialScale) / 2);
-    setStageY((screenH - CANVAS_HEIGHT * initialScale) / 2);
+    let fitScale = Math.min(screenW / CANVAS_WIDTH, screenH / CANVAS_HEIGHT) * 0.9;
+    if (fitScale > initialScale) fitScale = initialScale;
+    
+    setStageScale(fitScale);
+    setStageX((screenW - CANVAS_WIDTH * fitScale) / 2);
+    setStageY((screenH - CANVAS_HEIGHT * fitScale) / 2);
   }, []);
   
   // Tools and Elements
@@ -178,6 +183,86 @@ export default function Canvas() {
   // History State
   const [historyStep, setHistoryStep] = useState(0);
   const historyRef = useRef([[]]);
+
+  // --- Mobile Touch Logic ---
+  const pressTimer = useRef(null);
+  const lastCenter = useRef(null);
+  const lastDist = useRef(0);
+
+  const startPress = (action) => {
+    pressTimer.current = setTimeout(() => {
+      action();
+      pressTimer.current = null;
+    }, 500); // 500ms long press
+  };
+
+  const cancelPress = () => {
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current);
+      pressTimer.current = null;
+    }
+  };
+
+  const getDistance = (p1, p2) => Math.hypot(p2.clientX - p1.clientX, p2.clientY - p1.clientY);
+  const getCenter = (p1, p2) => ({
+    x: (p1.clientX + p2.clientX) / 2,
+    y: (p1.clientY + p2.clientY) / 2,
+  });
+
+  const handleTouchMove = (e) => {
+    // Only zoom if using two fingers
+    if (e.evt.touches && e.evt.touches.length === 2) {
+      e.evt.preventDefault();
+      const touch1 = e.evt.touches[0];
+      const touch2 = e.evt.touches[1];
+
+      const stage = stageRef.current;
+      const dist = getDistance(touch1, touch2);
+
+      if (!lastCenter.current) {
+        lastCenter.current = getCenter(touch1, touch2);
+        lastDist.current = dist;
+        return;
+      }
+
+      const newCenter = getCenter(touch1, touch2);
+      const distDiff = dist - lastDist.current;
+      const scaleBy = 1.05; 
+      const direction = distDiff > 0 ? 1 : -1;
+      
+      if (Math.abs(distDiff) < 5) return;
+
+      const oldScale = stage.scaleX();
+      let newScale = direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
+      
+      if (newScale < 0.1) newScale = 0.1;
+      if (newScale > 10) newScale = 10;
+
+      const pointer = {
+        x: newCenter['x'] - stage.container().getBoundingClientRect().left,
+        y: newCenter['y'] - stage.container().getBoundingClientRect().top
+      };
+
+      const mousePointTo = {
+        x: (pointer['x'] - stage.x()) / oldScale,
+        y: (pointer['y'] - stage.y()) / oldScale,
+      };
+
+      setStageScale(newScale);
+      setStageX(pointer['x'] - mousePointTo['x'] * newScale);
+      setStageY(pointer['y'] - mousePointTo['y'] * newScale);
+
+      lastDist.current = dist;
+      lastCenter.current = newCenter;
+    }
+  };
+
+  const handleTouchEndStage = () => {
+    lastDist.current = 0;
+    lastCenter.current = null;
+  };
+  // --------------------------
+
 
   const pushToHistory = (newRoads) => {
     const newHistory = historyRef.current.slice(0, historyStep + 1);
@@ -638,12 +723,12 @@ export default function Canvas() {
           <h1 className="text-base md:text-lg font-medium truncate max-w-[100px] md:max-w-xs">{mapData.name}</h1>
         </div>
         
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 bg-surface/50 border border-white/10 rounded-lg p-1 mr-2">
+        <div className="flex items-center gap-1 md:gap-3 shrink-0">
+          <div className="flex items-center gap-0.5 md:gap-1 bg-surface/50 border border-white/10 rounded-lg p-0.5 md:p-1 mr-1 md:mr-2">
             <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleUploadRef} />
             <button 
               onClick={() => fileInputRef.current?.click()}
-              className="p-1.5 rounded-md hover:bg-white/10 text-gray-400 hover:text-white transition-all"
+              className="p-1 md:p-1.5 rounded-md hover:bg-white/10 text-gray-400 hover:text-white transition-all"
               title="Upload Reference Image"
             >
               <Upload size={16} />
@@ -651,16 +736,16 @@ export default function Canvas() {
             {refImageStr && (
               <button 
                 onClick={() => setIsRefVisible(!isRefVisible)}
-                className="p-1.5 rounded-md hover:bg-white/10 text-gray-400 hover:text-white transition-all"
+                className="p-1 md:p-1.5 rounded-md hover:bg-white/10 text-gray-400 hover:text-white transition-all"
                 title="Toggle Reference Visibility"
               >
                 {isRefVisible ? <Eye size={16} /> : <EyeOff size={16} />}
               </button>
             )}
-            <div className="w-[1px] h-4 bg-white/10 mx-1"></div>
+            <div className="w-[1px] h-4 bg-white/10 mx-0.5 md:mx-1"></div>
             <button 
               onClick={handleUndo}
-              className="p-1.5 rounded-md hover:bg-white/10 text-gray-400 hover:text-white transition-all disabled:opacity-30"
+              className="p-1 md:p-1.5 rounded-md hover:bg-white/10 text-gray-400 hover:text-white transition-all disabled:opacity-30"
               disabled={historyStep <= 0}
               title="Undo (Ctrl+Z)"
             >
@@ -668,7 +753,7 @@ export default function Canvas() {
             </button>
             <button 
               onClick={handleRedo}
-              className="p-1.5 rounded-md hover:bg-white/10 text-gray-400 hover:text-white transition-all disabled:opacity-30"
+              className="p-1 md:p-1.5 rounded-md hover:bg-white/10 text-gray-400 hover:text-white transition-all disabled:opacity-30"
               disabled={historyStep >= historyRef.current.length - 1}
               title="Redo (Ctrl+Y)"
             >
@@ -678,7 +763,7 @@ export default function Canvas() {
           <button 
             onClick={handleDownloadPDF}
             disabled={isDownloading}
-            className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-all disabled:opacity-50"
+            className="p-1.5 md:p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-all disabled:opacity-50 shrink-0"
             title="Download PDF (A3)"
           >
             {isDownloading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
@@ -686,7 +771,7 @@ export default function Canvas() {
           <button 
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 bg-primary/20 text-primary hover:bg-primary/30 px-4 py-2 rounded-lg font-medium transition-all text-sm"
+            className="flex items-center justify-center gap-2 bg-primary/20 text-primary hover:bg-primary/30 p-1.5 md:px-4 md:py-2 rounded-lg font-medium transition-all text-sm shrink-0"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             <span className="hidden md:inline">Save</span>
@@ -961,7 +1046,7 @@ export default function Canvas() {
           )}
 
           <Stage
-            width={window.innerWidth - 64} // minus toolbar width
+            width={window.innerWidth >= 768 ? window.innerWidth - 64 : window.innerWidth} // minus toolbar width on desktop
             height={window.innerHeight - 64} // minus header height
             onWheel={handleWheel}
             draggable={effectiveTool === 'pan'}
@@ -971,6 +1056,9 @@ export default function Canvas() {
             y={stageY}
             ref={stageRef}
             onClick={handleStageClick}
+            onTap={handleStageClick}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEndStage}
             onMouseMove={handleMouseMove}
           >
             <Layer>
@@ -1184,6 +1272,9 @@ export default function Canvas() {
                         onClick={() => {
                           if (effectiveTool === 'select') setSelectedRoadId(road.id);
                           else if (effectiveTool === 'eraser') handleUpdateRoads(roads.filter(r => r.id !== road.id));
+                        }} onTap={() => {
+                          if (effectiveTool === 'select') setSelectedRoadId(road.id);
+                          else if (effectiveTool === 'eraser') handleUpdateRoads(roads.filter(r => r.id !== road.id));
                         }}
                         hitStrokeWidth={30}
                       />
@@ -1242,6 +1333,9 @@ export default function Canvas() {
                         closed={road.isClosed}
                         fillEnabled={false}
                         onClick={() => {
+                          if (effectiveTool === 'select') setSelectedRoadId(road.id);
+                          else if (effectiveTool === 'eraser') handleUpdateRoads(roads.filter(r => r.id !== road.id));
+                        }} onTap={() => {
                           if (effectiveTool === 'select') setSelectedRoadId(road.id);
                           else if (effectiveTool === 'eraser') handleUpdateRoads(roads.filter(r => r.id !== road.id));
                         }}
@@ -1308,8 +1402,14 @@ export default function Canvas() {
                         if (effectiveTool === 'select') {
                           setHouseModal({ isOpen: true, x: road.x, y: road.y, tool: road.type, editingId: road.id });
                           setHouseData({ number: road.number, isNonResidential: road.isNonResidential || false, purposeNumber: road.purposeNumber || '', isMultipleNumbers: road.isMultipleNumbers || false, endingNumber: road.endingNumber || '' });
-                        }
-                      }}
+                        }}}
+                      onTouchStart={() => startPress(() => {
+                        if (effectiveTool === 'select') {
+                          setHouseModal({ isOpen: true, x: road.x, y: road.y, tool: road.type, editingId: road.id });
+                          setHouseData({ number: road.number, isNonResidential: road.isNonResidential || false, purposeNumber: road.purposeNumber || '', isMultipleNumbers: road.isMultipleNumbers || false, endingNumber: road.endingNumber || '' });
+                        }})}
+                      onTouchEnd={cancelPress}
+                      onTouchMove={cancelPress}
                       onDragEnd={(e) => {
                         setRoads(prev => {
                           const newRoads = prev.map(r => r.id === road.id ? { ...r, x: e.target.x(), y: e.target.y() } : r);
@@ -1371,8 +1471,14 @@ export default function Canvas() {
                         if (effectiveTool === 'select') {
                           setHouseModal({ isOpen: true, x: road.x, y: road.y, tool: road.type, editingId: road.id });
                           setHouseData({ number: road.number, isNonResidential: road.isNonResidential || false, purposeNumber: road.purposeNumber || '', isMultipleNumbers: road.isMultipleNumbers || false, endingNumber: road.endingNumber || '' });
-                        }
-                      }}
+                        }}}
+                      onTouchStart={() => startPress(() => {
+                        if (effectiveTool === 'select') {
+                          setHouseModal({ isOpen: true, x: road.x, y: road.y, tool: road.type, editingId: road.id });
+                          setHouseData({ number: road.number, isNonResidential: road.isNonResidential || false, purposeNumber: road.purposeNumber || '', isMultipleNumbers: road.isMultipleNumbers || false, endingNumber: road.endingNumber || '' });
+                        }})}
+                      onTouchEnd={cancelPress}
+                      onTouchMove={cancelPress}
                       onDragEnd={(e) => {
                         setRoads(prev => {
                           const newRoads = prev.map(r => r.id === road.id ? { ...r, x: e.target.x(), y: e.target.y() } : r);
@@ -1430,8 +1536,14 @@ export default function Canvas() {
                         if (effectiveTool === 'select') {
                           setHouseModal({ isOpen: true, x: road.x, y: road.y, tool: road.type, editingId: road.id });
                           setHouseData({ number: road.number, isNonResidential: road.isNonResidential || false, purposeNumber: road.purposeNumber || '', isMultipleNumbers: road.isMultipleNumbers || false, endingNumber: road.endingNumber || '' });
-                        }
-                      }}
+                        }}}
+                      onTouchStart={() => startPress(() => {
+                        if (effectiveTool === 'select') {
+                          setHouseModal({ isOpen: true, x: road.x, y: road.y, tool: road.type, editingId: road.id });
+                          setHouseData({ number: road.number, isNonResidential: road.isNonResidential || false, purposeNumber: road.purposeNumber || '', isMultipleNumbers: road.isMultipleNumbers || false, endingNumber: road.endingNumber || '' });
+                        }})}
+                      onTouchEnd={cancelPress}
+                      onTouchMove={cancelPress}
                       onDragEnd={(e) => {
                         setRoads(prev => {
                           const newRoads = prev.map(r => r.id === road.id ? { ...r, x: e.target.x(), y: e.target.y() } : r);
@@ -1511,13 +1623,19 @@ export default function Canvas() {
                   ) : type === 'mosque' ? (
                     <Group
                       x={road.x} y={road.y} draggable={effectiveTool === 'select'}
-                      onClick={() => { if (effectiveTool === 'eraser') handleUpdateRoads(roads.filter(r => r.id !== road.id)); }}
+                      onClick={() => { if (effectiveTool === 'eraser') handleUpdateRoads(roads.filter(r => r.id !== road.id)); }} onTap={() => { if (effectiveTool === 'eraser') handleUpdateRoads(roads.filter(r => r.id !== road.id)); }}
                       onDblClick={() => {
                         if (effectiveTool === 'select') {
                           setHouseModal({ isOpen: true, x: road.x, y: road.y, tool: road.type, editingId: road.id });
                           setHouseData({ number: road.number, isNonResidential: false, purposeNumber: road.purposeNumber || '', isMultipleNumbers: road.isMultipleNumbers || false, endingNumber: road.endingNumber || '' });
-                        }
-                      }}
+                        }}}
+                      onTouchStart={() => startPress(() => {
+                        if (effectiveTool === 'select') {
+                          setHouseModal({ isOpen: true, x: road.x, y: road.y, tool: road.type, editingId: road.id });
+                          setHouseData({ number: road.number, isNonResidential: false, purposeNumber: road.purposeNumber || '', isMultipleNumbers: road.isMultipleNumbers || false, endingNumber: road.endingNumber || '' });
+                        }})}
+                      onTouchEnd={cancelPress}
+                      onTouchMove={cancelPress}
                       onDragEnd={(e) => {
                         setRoads(prev => {
                           const newRoads = prev.map(r => r.id === road.id ? { ...r, x: e.target.x(), y: e.target.y() } : r);
@@ -1544,13 +1662,19 @@ export default function Canvas() {
                   ) : type === 'church' ? (
                     <Group
                       x={road.x} y={road.y} draggable={effectiveTool === 'select'}
-                      onClick={() => { if (effectiveTool === 'eraser') handleUpdateRoads(roads.filter(r => r.id !== road.id)); }}
+                      onClick={() => { if (effectiveTool === 'eraser') handleUpdateRoads(roads.filter(r => r.id !== road.id)); }} onTap={() => { if (effectiveTool === 'eraser') handleUpdateRoads(roads.filter(r => r.id !== road.id)); }}
                       onDblClick={() => {
                         if (effectiveTool === 'select') {
                           setHouseModal({ isOpen: true, x: road.x, y: road.y, tool: road.type, editingId: road.id });
                           setHouseData({ number: road.number, isNonResidential: false, purposeNumber: road.purposeNumber || '', isMultipleNumbers: road.isMultipleNumbers || false, endingNumber: road.endingNumber || '' });
-                        }
-                      }}
+                        }}}
+                      onTouchStart={() => startPress(() => {
+                        if (effectiveTool === 'select') {
+                          setHouseModal({ isOpen: true, x: road.x, y: road.y, tool: road.type, editingId: road.id });
+                          setHouseData({ number: road.number, isNonResidential: false, purposeNumber: road.purposeNumber || '', isMultipleNumbers: road.isMultipleNumbers || false, endingNumber: road.endingNumber || '' });
+                        }})}
+                      onTouchEnd={cancelPress}
+                      onTouchMove={cancelPress}
                       onDragEnd={(e) => {
                         setRoads(prev => {
                           const newRoads = prev.map(r => r.id === road.id ? { ...r, x: e.target.x(), y: e.target.y() } : r);
@@ -1577,13 +1701,19 @@ export default function Canvas() {
                   ) : type === 'gurudwara' ? (
                     <Group
                       x={road.x} y={road.y} draggable={effectiveTool === 'select'}
-                      onClick={() => { if (effectiveTool === 'eraser') handleUpdateRoads(roads.filter(r => r.id !== road.id)); }}
+                      onClick={() => { if (effectiveTool === 'eraser') handleUpdateRoads(roads.filter(r => r.id !== road.id)); }} onTap={() => { if (effectiveTool === 'eraser') handleUpdateRoads(roads.filter(r => r.id !== road.id)); }}
                       onDblClick={() => {
                         if (effectiveTool === 'select') {
                           setHouseModal({ isOpen: true, x: road.x, y: road.y, tool: road.type, editingId: road.id });
                           setHouseData({ number: road.number, isNonResidential: false, purposeNumber: road.purposeNumber || '', isMultipleNumbers: road.isMultipleNumbers || false, endingNumber: road.endingNumber || '' });
-                        }
-                      }}
+                        }}}
+                      onTouchStart={() => startPress(() => {
+                        if (effectiveTool === 'select') {
+                          setHouseModal({ isOpen: true, x: road.x, y: road.y, tool: road.type, editingId: road.id });
+                          setHouseData({ number: road.number, isNonResidential: false, purposeNumber: road.purposeNumber || '', isMultipleNumbers: road.isMultipleNumbers || false, endingNumber: road.endingNumber || '' });
+                        }})}
+                      onTouchEnd={cancelPress}
+                      onTouchMove={cancelPress}
                       onDragEnd={(e) => {
                         setRoads(prev => {
                           const newRoads = prev.map(r => r.id === road.id ? { ...r, x: e.target.x(), y: e.target.y() } : r);
@@ -1619,13 +1749,22 @@ export default function Canvas() {
                       onClick={() => { 
                         if (effectiveTool === 'eraser') handleUpdateRoads(roads.filter(r => r.id !== road.id)); 
                         else if (effectiveTool === 'select') setSelectedRoadId(road.id);
+                      }} onTap={() => { 
+                        if (effectiveTool === 'eraser') handleUpdateRoads(roads.filter(r => r.id !== road.id)); 
+                        else if (effectiveTool === 'select') setSelectedRoadId(road.id);
                       }}
                       onDblClick={() => {
                         if (effectiveTool === 'select') {
                           setHouseModal({ isOpen: true, x: road.x, y: road.y, tool: road.type, editingId: road.id });
                           setHouseData({ number: road.number, isNonResidential: false, textSize: road.textSize || 12, purposeNumber: road.purposeNumber || '', isMultipleNumbers: road.isMultipleNumbers || false, endingNumber: road.endingNumber || '', rotation: road.rotation || 0 });
-                        }
-                      }}
+                        }}}
+                      onTouchStart={() => startPress(() => {
+                        if (effectiveTool === 'select') {
+                          setHouseModal({ isOpen: true, x: road.x, y: road.y, tool: road.type, editingId: road.id });
+                          setHouseData({ number: road.number, isNonResidential: false, textSize: road.textSize || 12, purposeNumber: road.purposeNumber || '', isMultipleNumbers: road.isMultipleNumbers || false, endingNumber: road.endingNumber || '', rotation: road.rotation || 0 });
+                        }})}
+                      onTouchEnd={cancelPress}
+                      onTouchMove={cancelPress}
                       onDragEnd={(e) => {
                         setRoads(prev => {
                           const newRoads = prev.map(r => r.id === road.id ? { ...r, x: e.target.x(), y: e.target.y() } : r);
@@ -1661,6 +1800,9 @@ export default function Canvas() {
                       onClick={() => { 
                         if (effectiveTool === 'eraser') handleUpdateRoads(roads.filter(r => r.id !== road.id)); 
                         else if (effectiveTool === 'select') setSelectedRoadId(road.id);
+                      }} onTap={() => { 
+                        if (effectiveTool === 'eraser') handleUpdateRoads(roads.filter(r => r.id !== road.id)); 
+                        else if (effectiveTool === 'select') setSelectedRoadId(road.id);
                       }}
                       onDragEnd={(e) => {
                         setRoads(prev => {
@@ -1690,6 +1832,9 @@ export default function Canvas() {
                       scaleX={road.scaleX || 1} scaleY={road.scaleY || 1}
                       draggable={effectiveTool === 'select'}
                       onClick={() => { 
+                        if (effectiveTool === 'eraser') handleUpdateRoads(roads.filter(r => r.id !== road.id)); 
+                        else if (effectiveTool === 'select') setSelectedRoadId(road.id);
+                      }} onTap={() => { 
                         if (effectiveTool === 'eraser') handleUpdateRoads(roads.filter(r => r.id !== road.id)); 
                         else if (effectiveTool === 'select') setSelectedRoadId(road.id);
                       }}
@@ -1733,6 +1878,9 @@ export default function Canvas() {
                       onClick={() => { 
                         if (effectiveTool === 'eraser') handleUpdateRoads(roads.filter(r => r.id !== road.id)); 
                         else if (effectiveTool === 'select') setSelectedRoadId(road.id);
+                      }} onTap={() => { 
+                        if (effectiveTool === 'eraser') handleUpdateRoads(roads.filter(r => r.id !== road.id)); 
+                        else if (effectiveTool === 'select') setSelectedRoadId(road.id);
                       }}
                       onDragEnd={(e) => {
                         setRoads(prev => {
@@ -1774,7 +1922,7 @@ export default function Canvas() {
                           radius={10}
                           fill="#22c55e"
                           opacity={0.6}
-                          onClick={(e) => handleAddMidpoint(road.id, i, e)}
+                          onClick={(e) => handleAddMidpoint(road.id, i, e)} onTap={(e) => handleAddMidpoint(road.id, i, e)}
                           onMouseEnter={(e) => { e.target.getStage().container().style.cursor = 'crosshair'; }}
                           onMouseLeave={(e) => { e.target.getStage().container().style.cursor = 'default'; }}
                         />

@@ -4,12 +4,20 @@ const cors = require('cors');
 const knexConfig = require('./knexfile');
 const environment = process.env.NODE_ENV || 'development';
 const knex = require('knex')(knexConfig[environment]);
-const path = require('path');
 const auth = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://drawmap.qodux.in', 
+    'http://localhost:5173',
+    'http://localhost:3000'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
 app.use(express.json({ limit: '50mb' }));
 
 // Auth Routes
@@ -77,15 +85,6 @@ app.put('/api/maps/:id', auth, async (req, res) => {
     res.status(500).json({ error: 'Failed to update map' });
   }
 });
-
-// Serve frontend in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/dist')));
-  
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
-  });
-}
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
